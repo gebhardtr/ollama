@@ -1,0 +1,66 @@
+# Not for upstream. Builds this branch's Go binary, layers it over the stock
+# ROCm image (the branch changes no C code, so the bundled llama-server and
+# GPU libraries stay compatible) and pushes it to GHCR under the repository
+# owner, so a host can pull it for testing. Runs on pushes to a release/*
+# branch (merges into it) or by hand; main stays an upstream mirror. The
+# release branch must match BASE_IMAGE, since the Go binary has to pair with
+# the bundled llama-server. The package starts private; make it public or
+# `podman login ghcr.io` on the host.
+
+name: image
+
+on:
+  push:
+    branches: ['release/**']
+  workflow_dispatch:
+
+env:
+  BASE_IMAGE: docker.io/ollama/ollama:0.40.2-rocm@sha256:58b807f105a7a0b1f04ee4203627a8e1d5c22489263ed673465b540744b94d45
+  BASE_VERSION: 0.40.2
+  IMAGE: ghcr.io/${{ github.repository_owner }}/ollama
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build ollama
+        env:
+          CGO_ENABLED: '1'
+        run: |
+          version="${BASE_VERSION}-${GITHUB_SHA:0:8}"
+          go build -trimpath -buildmode=pie \
+            -ldflags "-w -s -X=github.com/ollama/ollama/version.Version=${version} -X=github.com/ollama/ollama/server.mode=release" \
+            -o dist/ollama .
+          dist/ollama --version
+
+      - name: Write Dockerfile
+        run: |
+          cat > dist/Dockerfile <<DOCKERFILE
+          FROM ${BASE_IMAGE}
+          COPY ollama /usr/bin/ollama
+          DOCKERFILE
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: dist
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ env.BASE_VERSION }}-rocm
+            ${{ env.IMAGE }}:${{ env.BASE_VERSION }}-rocm-${{ github.sha }}
