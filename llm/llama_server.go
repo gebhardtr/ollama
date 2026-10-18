@@ -1425,6 +1425,9 @@ type llamaServerCompletionRequest struct {
 	NProbs          int             `json:"n_probs,omitempty"`
 	PreservedTokens []string        `json:"preserved_tokens,omitempty"`
 	TimingsPerToken bool            `json:"timings_per_token,omitempty"`
+
+	// llama-server checkpoints the context at these message starts (b9765 to b11530)
+	MessageDelimiters []MessageDelimiter `json:"message_delimiters,omitempty"`
 }
 
 // schemaGrammars caches the grammars llama-server derives from JSON schemas,
@@ -1652,23 +1655,24 @@ func (s *llamaServerRunner) Completion(ctx context.Context, req CompletionReques
 
 	// Build the llama-server request
 	lsReq := llamaServerCompletionRequest{
-		Prompt:          prompt,
-		Stream:          true,
-		CachePrompt:     true,
-		NPredict:        req.Options.NumPredict,
-		NKeep:           req.Options.NumKeep,
-		Temperature:     req.Options.Temperature,
-		TopK:            req.Options.TopK,
-		TopP:            req.Options.TopP,
-		MinP:            req.Options.MinP,
-		Stop:            req.Options.Stop,
-		RepeatPenalty:   req.Options.RepeatPenalty,
-		RepeatLastN:     req.Options.RepeatLastN,
-		FreqPenalty:     req.Options.FrequencyPenalty,
-		PresPenalty:     req.Options.PresencePenalty,
-		TypicalP:        req.Options.TypicalP,
-		Seed:            req.Options.Seed,
-		PreservedTokens: llamaServerPreservedTokens(req.PreservedTokens, req.ToolCallTag),
+		Prompt:            prompt,
+		Stream:            true,
+		CachePrompt:       true,
+		NPredict:          req.Options.NumPredict,
+		NKeep:             req.Options.NumKeep,
+		Temperature:       req.Options.Temperature,
+		TopK:              req.Options.TopK,
+		TopP:              req.Options.TopP,
+		MinP:              req.Options.MinP,
+		Stop:              req.Options.Stop,
+		RepeatPenalty:     req.Options.RepeatPenalty,
+		RepeatLastN:       req.Options.RepeatLastN,
+		FreqPenalty:       req.Options.FrequencyPenalty,
+		PresPenalty:       req.Options.PresencePenalty,
+		TypicalP:          req.Options.TypicalP,
+		Seed:              req.Options.Seed,
+		PreservedTokens:   llamaServerPreservedTokens(req.PreservedTokens, req.ToolCallTag),
+		MessageDelimiters: req.MessageDelimiters,
 	}
 
 	if req.Logprobs {

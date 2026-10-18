@@ -54,6 +54,35 @@ func LeadingBOSForRenderer(name string) string {
 	return renderer.LeadingBOS()
 }
 
+// MessageDelimiter is the fixed marker at the start of every message of a
+// role in a rendered prompt. llama-server checkpoints the context at these
+// positions, so a later prompt that shares the prefix up to one of them
+// resumes there instead of re-processing it (hybrid and SWA models cannot
+// roll back otherwise).
+type MessageDelimiter struct {
+	Role      string
+	Delimiter string
+}
+
+// chatMLMessageDelimiters are the message starts of the ChatML format.
+var chatMLMessageDelimiters = []MessageDelimiter{
+	{Role: "user", Delimiter: "<|im_start|>user"},
+	{Role: "assistant", Delimiter: "<|im_start|>assistant"},
+}
+
+type messageDelimiterer interface {
+	MessageDelimiters() []MessageDelimiter
+}
+
+// MessageDelimitersForRenderer returns the message delimiters of the named
+// renderer's prompt format, or nil if it does not declare any.
+func MessageDelimitersForRenderer(name string) []MessageDelimiter {
+	if r, ok := rendererForName(name).(messageDelimiterer); ok {
+		return r.MessageDelimiters()
+	}
+	return nil
+}
+
 func rendererForName(name string) Renderer {
 	if constructor, ok := registry.renderers[name]; ok {
 		return constructor()
