@@ -32,6 +32,10 @@ func (r *LFM2Renderer) LeadingBOS() string {
 	return lfm2BOSToken
 }
 
+func (r *LFM2Renderer) MessageDelimiters() []MessageDelimiter {
+	return chatMLMessageDelimiters
+}
+
 func lfm2RenderSystemContent(content any) string {
 	switch v := content.(type) {
 	case string:

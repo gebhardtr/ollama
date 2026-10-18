@@ -592,6 +592,7 @@ func (s *Server) GenerateHandler(c *gin.Context) {
 
 	prompt := req.Prompt
 	var leadingBOS string
+	var messageDelimiters []llm.MessageDelimiter
 	if !req.Raw {
 		tmpl := m.Template
 		if req.Template != "" {
@@ -702,6 +703,7 @@ func (s *Server) GenerateHandler(c *gin.Context) {
 					prompt = b.String()
 				}
 				leadingBOS = leadingBOSForModel(m)
+				messageDelimiters = messageDelimitersForModel(m)
 			}
 		} else {
 			// Direct template execution flow.
@@ -759,17 +761,18 @@ func (s *Server) GenerateHandler(c *gin.Context) {
 		}
 
 		if err := r.Completion(ctx, llm.CompletionRequest{
-			Prompt:          prompt,
-			Media:           media,
-			Format:          req.Format,
-			Options:         opts,
-			Shift:           req.Shift == nil || *req.Shift,
-			Truncate:        req.Truncate == nil || *req.Truncate,
-			Logprobs:        req.Logprobs,
-			TopLogprobs:     req.TopLogprobs,
-			PreservedTokens: preservedTokensForCompletion(builtinParser),
-			LeadingBOS:      leadingBOS,
-			ThinkingClose:   thinkingClose,
+			Prompt:            prompt,
+			Media:             media,
+			Format:            req.Format,
+			Options:           opts,
+			Shift:             req.Shift == nil || *req.Shift,
+			Truncate:          req.Truncate == nil || *req.Truncate,
+			Logprobs:          req.Logprobs,
+			TopLogprobs:       req.TopLogprobs,
+			PreservedTokens:   preservedTokensForCompletion(builtinParser),
+			LeadingBOS:        leadingBOS,
+			MessageDelimiters: messageDelimiters,
+			ThinkingClose:     thinkingClose,
 		}, func(cr llm.CompletionResponse) {
 			res := api.GenerateResponse{
 				Model:     req.Model,
@@ -2803,6 +2806,18 @@ func leadingBOSForModel(m *Model) string {
 	return renderers.LeadingBOSForRenderer(resolveRendererName(m))
 }
 
+func messageDelimitersForModel(m *Model) []llm.MessageDelimiter {
+	if m == nil || m.Config.Renderer == "" {
+		return nil
+	}
+
+	var delimiters []llm.MessageDelimiter
+	for _, d := range renderers.MessageDelimitersForRenderer(resolveRendererName(m)) {
+		delimiters = append(delimiters, llm.MessageDelimiter{Role: d.Role, Delimiter: d.Delimiter})
+	}
+	return delimiters
+}
+
 func optionsForPrompt(opts *api.Options, runner llm.LlamaServer) *api.Options {
 	if opts == nil || runner == nil {
 		return opts
@@ -3251,18 +3266,19 @@ func (s *Server) ChatHandler(c *gin.Context) {
 		var parserErr error
 
 		err := r.Completion(ctx, llm.CompletionRequest{
-			Prompt:          prompt,
-			Media:           media,
-			Format:          req.Format,
-			Options:         opts,
-			Shift:           req.Shift == nil || *req.Shift,
-			Truncate:        truncate,
-			Logprobs:        req.Logprobs,
-			TopLogprobs:     req.TopLogprobs,
-			PreservedTokens: preservedTokensForCompletion(builtinParser),
-			ToolCallTag:     toolCallTagForCompletion(toolParser),
-			LeadingBOS:      leadingBOSForModel(m),
-			ThinkingClose:   thinkingCloseForCompletion(builtinParser, thinkTagParser),
+			Prompt:            prompt,
+			Media:             media,
+			Format:            req.Format,
+			Options:           opts,
+			Shift:             req.Shift == nil || *req.Shift,
+			Truncate:          truncate,
+			Logprobs:          req.Logprobs,
+			TopLogprobs:       req.TopLogprobs,
+			PreservedTokens:   preservedTokensForCompletion(builtinParser),
+			ToolCallTag:       toolCallTagForCompletion(toolParser),
+			LeadingBOS:        leadingBOSForModel(m),
+			MessageDelimiters: messageDelimitersForModel(m),
+			ThinkingClose:     thinkingCloseForCompletion(builtinParser, thinkTagParser),
 		}, func(r llm.CompletionResponse) {
 			res := api.ChatResponse{
 				Model:     req.Model,

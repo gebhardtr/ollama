@@ -201,6 +201,13 @@ func MessageFromAPI(msg api.Message) Message {
 	}
 }
 
+// MessageDelimiter marks the start of every message of a role in a rendered
+// prompt. llama-server creates context checkpoints at these positions.
+type MessageDelimiter struct {
+	Role      string `json:"role"`
+	Delimiter string `json:"delimiter"`
+}
+
 type CompletionRequest struct {
 	Prompt  string
 	Format  json.RawMessage
@@ -212,6 +219,9 @@ type CompletionRequest struct {
 	PreservedTokens []string // parser tokens to render as text; ignored by non-llama-server runners
 	ToolCallTag     string   // raw generic tool parser tag, if any
 	LeadingBOS      string   // textual BOS emitted by Go rendering, if any
+	// MessageDelimiters mark the message starts of a Go-rendered prompt, so
+	// llama-server can checkpoint the context there; ignored by other runners
+	MessageDelimiters []MessageDelimiter
 	// ThinkingClose holds the strings any of which ends the thinking the
 	// response begins with, which Format leaves free; none when the response
 	// starts in content.
